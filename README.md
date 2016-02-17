@@ -25,7 +25,7 @@ The experimental data that was used for the analysis is found in [`processed.xls
     
 Additionally, unprocessed, raw data files are found in [`raw_data`](./raw_data).
 
-See `docs/index.html` for a formatted documentation of the analysis.
+See [`docs`](https://rawgit.com/choderalab/sampl5-experimental-logd-data/master/docs/index.html?token=ADyyA7hQfY53bbxeiJ_qNT-ZdQSjTnlBks5WzhviwA%3D%3D) for a documentation of the analysis.
 
 ## Acknowledgements 
 * Dan Ortwine, Genentech
