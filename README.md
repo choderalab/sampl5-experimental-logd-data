@@ -4,7 +4,7 @@
 
 * [Bas Rustenburg](https://github.com/bas-rustenburg)
   * Genentech, South San Francisco, CA,
-  * Chodera Lab at Memorial Sloan Kettering, New York, NY
+  * Memorial Sloan Kettering, New York, NY // Chodera Lab
 * [John Chodera](http://www.choderalab.org/)
   * Memorial Sloan Kettering, New York, NY
 * [David Mobley](http://www.mobleylab.org/)
