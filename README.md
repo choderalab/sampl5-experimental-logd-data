@@ -3,7 +3,7 @@
 ### Authors
 
 * [Bas Rustenburg](https://github.com/bas-rustenburg)
-  * Genentech, South San Francisco, CA,
+  * Genentech, South San Francisco, CA
   * Memorial Sloan Kettering, New York, NY // Chodera Lab
 * [John Chodera](http://www.choderalab.org/)
   * Memorial Sloan Kettering, New York, NY
