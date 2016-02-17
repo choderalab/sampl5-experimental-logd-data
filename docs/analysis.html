@@ -27,18 +27,17 @@
         
       
         
-        <p>This script only works for python 3.
-Depends on pandas and uncertainties package (see above)
-Analyzes the data with propagation of uncertainties by linear approximation error propagation theory as implemented in uncertainties package.</p>
+        <p>Analyzes the data with propagation of uncertainties by linear approximation error propagation theory as implemented in uncertainties package.
+This script only works for python 3.</p>
 
         
       
         
-        <p>Uncertainties: a Python package for calculations with uncertainties, Eric O. LEBIGOT, <a href="http://pythonhosted.org/uncertainties/">http://pythonhosted.org/uncertainties/</a></p>
+        <p>Depends on pandas and uncertainties package.
+Uncertainties: a Python package for calculations with uncertainties, Eric O. LEBIGOT, <a href="http://pythonhosted.org/uncertainties/">http://pythonhosted.org/uncertainties/</a></p>
 
         
-          <div class='highlight'><pre>
-<span class="hljs-keyword">import</span> pandas <span class="hljs-keyword">as</span> pd
+          <div class='highlight'><pre><span class="hljs-keyword">import</span> pandas <span class="hljs-keyword">as</span> pd
 <span class="hljs-keyword">from</span> uncertainties <span class="hljs-keyword">import</span> ufloat
 <span class="hljs-keyword">from</span> uncertainties.umath <span class="hljs-keyword">import</span> log10
 <span class="hljs-keyword">import</span> math</pre></div>
@@ -117,7 +116,7 @@ This is done by averaging over multiple injections of the same solution and calc
         
       
         
-        <p>Doing math on the pd.Series of length one returns Nans. This hack extracts the value.</p>
+        <p>Doing math on the pd.Series of length one returns Nans as uncertainty. This hack extracts the value.</p>
 
         
           <div class='highlight'><pre>    log_chx = chx[<span class="hljs-string">"Log10 Area/Volume (Uncertainty)"</span>]._values[<span class="hljs-number">0</span>]
@@ -125,7 +124,7 @@ This is done by averaging over multiple injections of the same solution and calc
         
       
         
-        <p>log D is defined as  log_10 (peak area/injection volume CHX) - log_10 (peak  area/injection volume PBS),</p>
+        <p>log D is defined as  log_10 (peak area/injection volume CHX) - log_10 (peak area/injection volume PBS),</p>
 
         
           <div class='highlight'><pre>    estimate = log_chx - log_pbs

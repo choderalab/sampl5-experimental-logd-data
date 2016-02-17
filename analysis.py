@@ -1,10 +1,9 @@
 #!/usr/bin/env python3
-# This script only works for python 3.
-# Depends on pandas and uncertainties package (see above)
 # Analyzes the data with propagation of uncertainties by linear approximation error propagation theory as implemented in uncertainties package.
+# This script only works for python 3.
 
+# Depends on pandas and uncertainties package.
 # Uncertainties: a Python package for calculations with uncertainties, Eric O. LEBIGOT, http://pythonhosted.org/uncertainties/
-
 import pandas as pd
 from uncertainties import ufloat
 from uncertainties.umath import log10
@@ -45,11 +44,11 @@ for (compound, measurement), estimates in replicate_measurements.groupby(["Compo
     assert len(chx) == 1
     assert len(pbs) == 1
 
-    # Doing math on the pd.Series of length one returns Nans. This hack extracts the value.
+    # Doing math on the pd.Series of length one returns Nans as uncertainty. This hack extracts the value.
     log_chx = chx["Log10 Area/Volume (Uncertainty)"]._values[0]
     log_pbs = pbs["Log10 Area/Volume (Uncertainty)"]._values[0]
 
-    # log D is defined as  log_10 (peak area/injection volume CHX) - log_10 (peak  area/injection volume PBS),
+    # log D is defined as  log_10 (peak area/injection volume CHX) - log_10 (peak area/injection volume PBS),
     estimate = log_chx - log_pbs
     experiments = experiments.append({"Compound": compound, "log D": estimate}, ignore_index=True)
 

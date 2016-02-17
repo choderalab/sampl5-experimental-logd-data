@@ -1,10 +1,7 @@
 # README
 
-This directory contains some work in progress code pertaining to Bayesian models
-of the experimental uncertainty.
-
+This directory contains some work in progress code pertaining to Bayesian models of the experimental uncertainty.
 Code is highly subject to change.
-
 
 ## File description
 
