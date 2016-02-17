@@ -1,0 +1,209 @@
+<!DOCTYPE html>
+
+<html>
+<head>
+  <title>process_data.py</title>
+  <meta http-equiv="content-type" content="text/html; charset=UTF-8">
+  <link rel="stylesheet" media="all" href="public/stylesheets/normalize.css" />
+  <link rel="stylesheet" media="all" href="docco.css" />
+</head>
+<body>
+  <div class="container">
+    <div class="page">
+
+      <div class="header">
+        
+          <h1>process_data.py</h1>
+        
+
+        
+      </div>
+
+      
+        
+        <p>Unify the data format from the integrated raw data
+Generates excel sheets with necessary metadata such as experiments, replicate numbers, repeat numbers.</p>
+
+        
+      
+        
+        <p>Depends on pandas, numpy, pyyaml</p>
+
+        
+          <div class='highlight'><pre><span class="hljs-keyword">import</span> pandas <span class="hljs-keyword">as</span> pd
+<span class="hljs-keyword">import</span> numpy <span class="hljs-keyword">as</span> np
+<span class="hljs-keyword">import</span> yaml</pre></div>
+        
+      
+        
+        <p>The data is read from tables containing the integrated peak areas, and metadata, some of which is embedded in the filenames.
+Each file represents a batch of experiments. Each set represents one set of 32 molecules.
+Batch 1 was measured twice, using different injection volumes.</p>
+
+        
+          <div class='highlight'><pre>
+data = dict(b1s1_38=pd.read_table(<span class="hljs-string">"150917-Batch1Set1-wk38-BAS.txt"</span>), b1s2_39=pd.read_table(<span class="hljs-string">"150923-Batch1Set2-wk39-BAS.txt"</span>),
+            b1s1_39=pd.read_table(<span class="hljs-string">"150924-Batch1Set1-wk39-BAS.txt"</span>), std_39=pd.read_table(<span class="hljs-string">"150925-STD-wk39-BAS.txt"</span>, header=<span class="hljs-number">1</span>))</pre></div>
+        
+      
+        
+        <p>Process each dataframe, adding metadata in new columns</p>
+
+        
+          <div class='highlight'><pre><span class="hljs-keyword">for</span> setname, df <span class="hljs-keyword">in</span> data.items():
+    df[<span class="hljs-string">"Solvent"</span>] = df[<span class="hljs-string">"Sample ID"</span>].apply(<span class="hljs-keyword">lambda</span> x: x[<span class="hljs-number">0</span>:<span class="hljs-number">3</span>])
+    df[<span class="hljs-string">"Set"</span>] = setname</pre></div>
+        
+      
+        
+        <p>Extracing all of the useful metadata that is contained in the file name.</p>
+
+        
+      
+        
+        <p>Repeat indicates the independent experiments that was repeated
+Replicate indicates a technical replicate (multiple injections/measurements of the same solution)</p>
+
+        
+          <div class='highlight'><pre>
+    df[<span class="hljs-string">"Date"</span>] = df[<span class="hljs-string">"File Name"</span>].apply(<span class="hljs-keyword">lambda</span> x: x.split(sep=<span class="hljs-string">'- '</span>)[<span class="hljs-number">0</span>][:])
+    df[<span class="hljs-string">"Repeat"</span>] = df[<span class="hljs-string">"File Name"</span>].apply(<span class="hljs-keyword">lambda</span> x: int(x.split(sep=<span class="hljs-string">'-'</span>)[<span class="hljs-number">4</span>][:]))
+    df[<span class="hljs-string">"Replicate"</span>] = df[<span class="hljs-string">"File Name"</span>].apply(<span class="hljs-keyword">lambda</span> x: x.split(sep=<span class="hljs-string">'-'</span>)[<span class="hljs-number">5</span>][:])</pre></div>
+        
+      
+        
+        <p>Store information on the number of microliters injected into LCMS, These are known from the experimental protocol</p>
+
+        
+      
+        
+        <p>These valumes are already corrected for octanol dilution (10% cyclohexane, 90% octanol).
+I have no available estimate of the introduced uncertainty there.</p>
+
+        
+          <div class='highlight'><pre>
+    <span class="hljs-keyword">if</span> setname == <span class="hljs-string">"b1s1_39"</span>:</pre></div>
+        
+      
+        
+        <p>Changed the MS injection volumes for this experiment only.
+This was done as a means to increase the detection sensitivity in the cyclohexane phase, while reducing possible upper detection
+limit issues in the PBS phase measurements.</p>
+
+        
+          <div class='highlight'><pre>        vols = dict(CHX=<span class="hljs-number">0.2</span>, PBS=<span class="hljs-number">1</span>)
+    <span class="hljs-keyword">else</span>:
+        vols = dict(CHX=<span class="hljs-number">0.1</span>, PBS=<span class="hljs-number">2</span>)
+
+    df[<span class="hljs-string">"Volume"</span>] = df[<span class="hljs-string">"Solvent"</span>].apply(<span class="hljs-keyword">lambda</span> x: vols[x])</pre></div>
+        
+      
+        
+        <p>Normalize peak area by volume. Assuming zero uncertainty in injection volumes.</p>
+
+        
+          <div class='highlight'><pre>    df[<span class="hljs-string">"Area/Volume"</span>] = df[<span class="hljs-string">"Analyte Peak Area (counts)"</span>] / df[<span class="hljs-string">"Volume"</span>]</pre></div>
+        
+      
+        
+        <p>Precalculating this value for the quick and dirty estimate only.</p>
+
+        
+          <div class='highlight'><pre>    df[<span class="hljs-string">"log10 (Area/Volume)"</span>] = np.log10(df[<span class="hljs-string">"Area/Volume"</span>])</pre></div>
+        
+      
+        
+        <p>Drop columns that don’t contain information (NA columns)</p>
+
+        
+          <div class='highlight'><pre>    df = df.drop(<span class="hljs-string">'Sample Type'</span>, <span class="hljs-number">1</span>)
+    df = df.drop(<span class="hljs-string">'Unnamed: 0'</span>, <span class="hljs-number">1</span>)
+    df = df.drop(<span class="hljs-string">'Calculated Concentration (ng/mL)'</span>, <span class="hljs-number">1</span>)
+    data[setname] = df.dropna(axis=<span class="hljs-number">1</span>, how=<span class="hljs-string">'all'</span>)</pre></div>
+        
+      
+        
+        <p>Merge all data sets.</p>
+
+        
+          <div class='highlight'><pre>data = pd.concat(data)</pre></div>
+        
+      
+        
+        <p>Create new field in the data table to mark data points that are to be excluded from the dataset in the final analysis,
+due to poor reproducibility.</p>
+
+        
+          <div class='highlight'><pre>data[<span class="hljs-string">"Exclude"</span>] = <span class="hljs-keyword">False</span></pre></div>
+        
+      
+        
+        <p>Loading the list of compounds to exclude from each set of experiments.</p>
+
+        
+          <div class='highlight'><pre>exclusions = yaml.load(open(<span class="hljs-string">'excluded_samples.txt'</span>))</pre></div>
+        
+      
+        
+        <p>Data was nit-picked based on reproducibility of experiment and detection limits.</p>
+
+        
+          <div class='highlight'><pre>
+b1s1_38_exc=exclusions[<span class="hljs-string">"150917-Batch1Set1-wk38-BAS.txt"</span>]
+b1s2_39_exc=exclusions[<span class="hljs-string">"150923-Batch1Set2-wk39-BAS.txt"</span>]
+b1s1_39_exc=exclusions[<span class="hljs-string">"150924-Batch1Set1-wk39-BAS.txt"</span>]
+std_39_exc=exclusions[<span class="hljs-string">"150925-STD-wk39-BAS.txt"</span>]</pre></div>
+        
+      
+        
+        <p>Mark compounds that need to be excluded from an individual set.</p>
+
+        
+          <div class='highlight'><pre>
+data.loc[(data[<span class="hljs-string">"Set"</span>] == <span class="hljs-string">"b1s1_38"</span>) &amp; (
+    data[<span class="hljs-string">"Sample Name"</span>].isin(b1s1_38_exc)), <span class="hljs-string">"Exclude"</span>] = <span class="hljs-keyword">True</span>
+data.loc[(data[<span class="hljs-string">"Set"</span>] == <span class="hljs-string">"b1s1_39"</span>) &amp; (
+    data[<span class="hljs-string">"Sample Name"</span>].isin(b1s1_39_exc)), <span class="hljs-string">"Exclude"</span>] = <span class="hljs-keyword">True</span>
+data.loc[(data[<span class="hljs-string">"Set"</span>] == <span class="hljs-string">"b1s2_39"</span>) &amp; (
+    data[<span class="hljs-string">"Sample Name"</span>].isin(b1s2_39_exc)), <span class="hljs-string">"Exclude"</span>] = <span class="hljs-keyword">True</span>
+data.loc[(data[<span class="hljs-string">"Set"</span>] == <span class="hljs-string">"std_39"</span>) &amp; (
+    data[<span class="hljs-string">"Sample Name"</span>].isin(std_39_exc)), <span class="hljs-string">"Exclude"</span>] = <span class="hljs-keyword">True</span></pre></div>
+        
+      
+        
+        <p>Store all the processed data in an excel sheet</p>
+
+        
+          <div class='highlight'><pre>
+xlsx = pd.ExcelWriter(<span class="hljs-string">'processed.xlsx'</span>)
+data_filtered = data[data[<span class="hljs-string">"Exclude"</span>] == <span class="hljs-keyword">False</span>]
+data_filtered.to_excel(xlsx, sheet_name=<span class="hljs-string">'Filtered Data'</span>)
+data.to_excel(xlsx, sheet_name=<span class="hljs-string">'All Data'</span>)</pre></div>
+        
+      
+        
+        <p>Quick and dirty logD calculation without uncertainties</p>
+
+        
+          <div class='highlight'><pre>
+output = open(<span class="hljs-string">"logd.txt"</span>, <span class="hljs-string">"w"</span>)
+output.write(<span class="hljs-string">"Compound\tDate\tRepeat\tReplicate\tlog_D\tlog_chx\tlog_pbs\n"</span>)
+<span class="hljs-keyword">for</span> compound, df_compound <span class="hljs-keyword">in</span> data_filtered.groupby(<span class="hljs-string">"Sample Name"</span>):
+    <span class="hljs-keyword">for</span> (date, repeat, repl), df_exp <span class="hljs-keyword">in</span> df_compound.groupby([<span class="hljs-string">"Date"</span>, <span class="hljs-string">"Repeat"</span>, <span class="hljs-string">"Replicate"</span>,]):
+        groups = df_exp.groupby([<span class="hljs-string">"Solvent"</span>])
+        chx = groups.get_group(<span class="hljs-string">'CHX'</span>)
+        pbs = groups.get_group(<span class="hljs-string">'PBS'</span>)
+        chx_av = float(chx[<span class="hljs-string">"log10 (Area/Volume)"</span>])
+        pbs_av = float(pbs[<span class="hljs-string">"log10 (Area/Volume)"</span>])
+        output.write(<span class="hljs-string">"%s\t%s\t%s\t%s\t%.2f\t%.2f\t%.2f\n"</span> % (compound, date, repeat, repl, chx_av - pbs_av, chx_av, pbs_av))
+
+output.close()
+xlsx.save()
+xlsx.close()</pre></div>
+        
+      
+      <div class="fleur">h</div>
+    </div>
+  </div>
+</body>
+</html>

@@ -1,0 +1,168 @@
+<!DOCTYPE html>
+
+<html>
+<head>
+  <title>analysis.py</title>
+  <meta http-equiv="content-type" content="text/html; charset=UTF-8">
+  <link rel="stylesheet" media="all" href="public/stylesheets/normalize.css" />
+  <link rel="stylesheet" media="all" href="docco.css" />
+</head>
+<body>
+  <div class="container">
+    <div class="page">
+
+      <div class="header">
+        
+          <h1>analysis.py</h1>
+        
+
+        
+      </div>
+
+      
+        
+        
+        
+          <div class='highlight'><pre><span class="hljs-comment">#!/usr/bin/env python3</span></pre></div>
+        
+      
+        
+        <p>This script only works for python 3.
+Depends on pandas and uncertainties package (see above)
+Analyzes the data with propagation of uncertainties by linear approximation error propagation theory as implemented in uncertainties package.</p>
+
+        
+      
+        
+        <p>Uncertainties: a Python package for calculations with uncertainties, Eric O. LEBIGOT, <a href="http://pythonhosted.org/uncertainties/">http://pythonhosted.org/uncertainties/</a></p>
+
+        
+          <div class='highlight'><pre>
+<span class="hljs-keyword">import</span> pandas <span class="hljs-keyword">as</span> pd
+<span class="hljs-keyword">from</span> uncertainties <span class="hljs-keyword">import</span> ufloat
+<span class="hljs-keyword">from</span> uncertainties.umath <span class="hljs-keyword">import</span> log10
+<span class="hljs-keyword">import</span> math</pre></div>
+        
+      
+        
+        <p>Input data from the preprocessing step.</p>
+
+        
+          <div class='highlight'><pre>table = pd.read_excel(<span class="hljs-string">'processed.xlsx'</span>, sheetname=<span class="hljs-string">'Filtered Data'</span>)</pre></div>
+        
+      
+        
+        <p>Final output file</p>
+
+        
+          <div class='highlight'><pre>output = open(<span class="hljs-string">'logD_final.txt'</span>, <span class="hljs-string">'w'</span>)</pre></div>
+        
+      
+        
+        <p>Store results in new dataframe</p>
+
+        
+          <div class='highlight'><pre>replicate_measurements = pd.DataFrame()</pre></div>
+        
+      
+        
+        <p>Estimate the uncertainty from technical replicates of the same experiments.
+This is done by averaging over multiple injections of the same solution and calculating the standard deviation.</p>
+
+        
+          <div class='highlight'><pre><span class="hljs-keyword">for</span> (compound, dset, repeat, solv), df_exp <span class="hljs-keyword">in</span> table.groupby([<span class="hljs-string">"Sample Name"</span>, <span class="hljs-string">"Set"</span>, <span class="hljs-string">"Repeat"</span>, <span class="hljs-string">"Solvent"</span>, ]):
+    mean = df_exp[<span class="hljs-string">"Area/Volume"</span>].mean()</pre></div>
+        
+      
+        
+        <p>Multiply by sqrt(3) since replicate measurements not independent</p>
+
+        
+          <div class='highlight'><pre>    uncertainty = df_exp[<span class="hljs-string">"Area/Volume"</span>].std() * math.sqrt(<span class="hljs-number">3.0</span>)</pre></div>
+        
+      
+        
+        <p>Store the log base 10 of the measurement.</p>
+
+        
+          <div class='highlight'><pre>    measurement = log10(ufloat(mean, uncertainty, tag=<span class="hljs-string">"replicate"</span>))
+    replicate_measurements = replicate_measurements.append(
+            {<span class="hljs-string">"Compound"</span>: compound, <span class="hljs-string">"Solvent"</span>: solv, <span class="hljs-string">"Log10 Area/Volume (Uncertainty)"</span>: measurement,
+             <span class="hljs-string">"Experiment"</span>: <span class="hljs-string">"{}-{}"</span>.format(dset, repeat)}, ignore_index=<span class="hljs-keyword">True</span>)</pre></div>
+        
+      
+        
+        <p>Log D estimates are tabulated in a new dataframe.</p>
+
+        
+          <div class='highlight'><pre>experiments = pd.DataFrame()</pre></div>
+        
+      
+        
+        <p>Calculate the log D of each individual repeat experiment</p>
+
+        
+          <div class='highlight'><pre><span class="hljs-keyword">for</span> (compound, measurement), estimates <span class="hljs-keyword">in</span> replicate_measurements.groupby([<span class="hljs-string">"Compound"</span>, <span class="hljs-string">"Experiment"</span>]):
+    groups = estimates.groupby([<span class="hljs-string">"Solvent"</span>])
+    chx = groups.get_group(<span class="hljs-string">'CHX'</span>)
+    pbs = groups.get_group(<span class="hljs-string">'PBS'</span>)</pre></div>
+        
+      
+        
+        <p>Error checking, these should be single experiment values, or the following hack won’t work correctly.</p>
+
+        
+          <div class='highlight'><pre>    <span class="hljs-keyword">assert</span> len(chx) == <span class="hljs-number">1</span>
+    <span class="hljs-keyword">assert</span> len(pbs) == <span class="hljs-number">1</span></pre></div>
+        
+      
+        
+        <p>Doing math on the pd.Series of length one returns Nans. This hack extracts the value.</p>
+
+        
+          <div class='highlight'><pre>    log_chx = chx[<span class="hljs-string">"Log10 Area/Volume (Uncertainty)"</span>]._values[<span class="hljs-number">0</span>]
+    log_pbs = pbs[<span class="hljs-string">"Log10 Area/Volume (Uncertainty)"</span>]._values[<span class="hljs-number">0</span>]</pre></div>
+        
+      
+        
+        <p>log D is defined as  log_10 (peak area/injection volume CHX) - log_10 (peak  area/injection volume PBS),</p>
+
+        
+          <div class='highlight'><pre>    estimate = log_chx - log_pbs
+    experiments = experiments.append({<span class="hljs-string">"Compound"</span>: compound, <span class="hljs-string">"log D"</span>: estimate}, ignore_index=<span class="hljs-keyword">True</span>)</pre></div>
+        
+      
+        
+        <p>Header for the output file</p>
+
+        
+          <div class='highlight'><pre>output.write(<span class="hljs-string">"Compound,log D,uncertainty\n"</span>)</pre></div>
+        
+      
+        
+        <p>Combine all independent repeat experiments into one estimate of the log D with uncertainty</p>
+
+        
+          <div class='highlight'><pre><span class="hljs-keyword">for</span> compound, group <span class="hljs-keyword">in</span> experiments.groupby(<span class="hljs-string">"Compound"</span>):
+    tot = <span class="hljs-number">0.0</span>
+    <span class="hljs-keyword">for</span> val <span class="hljs-keyword">in</span> group[<span class="hljs-string">"log D"</span>]:
+        tot += val
+
+    tot /= len(group)</pre></div>
+        
+      
+        
+        <p>The final estimate is written to the output file
+Rounds uncertainty to 1 sig digit, and rounds value appropriately based on uncertainty.</p>
+
+        
+          <div class='highlight'><pre>    output.write(<span class="hljs-string">"{}, {:.1u}\n"</span>.format(compound,tot))
+
+output.close()</pre></div>
+        
+      
+      <div class="fleur">h</div>
+    </div>
+  </div>
+</body>
+</html>
