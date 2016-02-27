@@ -182,7 +182,7 @@ if __name__ == "__main__":
         samples = [-10000] * n_samples
         for i in range(n_samples):
 
-            samples[i] = sample(data_dict[compound])
+            samples[i] = sample(data_dict[compound], resample_measurements=True)
 
         print(compound, np.average(samples) , np.std(samples))
 
