@@ -53,12 +53,10 @@ def measurement_bootstrap(chx_signal, buffer_signal):
     signal_inaccuracy = 0.1
     signal_imprecision = 0.1
 
-    # Bias should be the same for chx and buffer
-    # TODO could be wrong if one of the two samples saturates
-    bias = normal()
-
-    chx_signal_actual = chx_signal * ((1 + signal_inaccuracy * bias) + signal_imprecision * normal())
-    buffer_signal_actual = buffer_signal * ((1 + signal_inaccuracy * bias) + signal_imprecision * normal())
+    bias_chx = normal()
+    bias_buffer = normal()
+    chx_signal_actual = chx_signal * ((1 + signal_inaccuracy * bias_chx) + signal_imprecision * normal())
+    buffer_signal_actual = buffer_signal * ((1 + signal_inaccuracy * bias_buffer) + signal_imprecision * normal())
     return chx_signal_actual, buffer_signal_actual
 
 
