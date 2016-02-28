@@ -71,7 +71,7 @@ def resample_replicates(measurements):
     measurements = resample_repeats(measurements)
     for m, meas in enumerate(measurements):
         n = meas.shape[0]
-        measurements[m] = meas[choice(m,m)]
+        measurements[m] = meas[choice(n,n)]
     return measurements
 
 
@@ -105,7 +105,7 @@ def sample(measurements, resample_measurements=False):
     assert measurements.shape[-1] == 4
 
     if resample_measurements:
-        measurements = resample_repeats(measurements)
+        measurements = resample_replicates(measurements)
 
     result = np.empty(measurements.size / measurements.shape[-1])  # Number of log D estimates/measurements
     for r, repeat in enumerate(measurements):
