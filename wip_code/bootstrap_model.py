@@ -102,7 +102,7 @@ def cyclohexane_dilution_bootstrap(expected_cyclohexane_volume=10., expected_oct
     
     # Relative bias and variance are simulated from standard normal distribution
     # $$\begin{align}
-    # \text{Relative bias} \sim \mathcal{N}(0,1) \\\
+    # \text{Relative bias} \sim \mathcal{N}(0,1) \\\\
     # \text{Relative variance} \sim \mathcal{N}(0,1) \\\\
     # \end{align}$$
     
