@@ -1,0 +1,542 @@
+<!DOCTYPE html>
+
+<html>
+<head>
+  <title>Model definitions</title>
+  <meta http-equiv="content-type" content="text/html; charset=UTF-8">
+  <link rel="stylesheet" media="all" href="public/stylesheets/normalize.css" />
+  <link rel="stylesheet" media="all" href="docco.css" />
+ <script type="text/x-mathjax-config">
+  MathJax.Hub.Config({tex2jax: {inlineMath: [['$','$'], ['\\(','\\)']]}});
+</script>
+<script type="text/javascript" async
+  src="https://cdn.mathjax.org/mathjax/latest/MathJax.js?config=TeX-AMS_CHTML">
+</script>
+</head>
+<body>
+  <div class="container">
+    <div class="page">
+
+      <div class="header">
+        
+          
+          <h1 id="model-definitions">Model definitions</h1>
+
+          
+        
+
+        
+      </div>
+
+      
+        
+        <p>First we define all the models needed to describe the experiments</p>
+
+        
+      
+        
+        <p>List of imported libraries</p>
+
+        
+          <div class='highlight'><pre><span class="hljs-keyword">from</span> __future__ <span class="hljs-keyword">import</span> print_function
+<span class="hljs-keyword">from</span> numpy.random <span class="hljs-keyword">import</span> normal, choice
+<span class="hljs-keyword">import</span> numpy <span class="hljs-keyword">as</span> np
+<span class="hljs-keyword">import</span> pandas <span class="hljs-keyword">as</span> pd
+<span class="hljs-keyword">from</span> scipy.interpolate <span class="hljs-keyword">import</span> interp1d
+<span class="hljs-keyword">from</span> uncertainties <span class="hljs-keyword">import</span> ufloat</pre></div>
+        
+      
+        
+        <h2 id="pipette-models">Pipette models</h2>
+
+        
+      
+        
+        <p>These models simply calculate the expected imprecision and inaccuracy of the pipettes used for sample preparation.</p>
+
+        
+      
+        
+        <p>Model of a multichannel pipette, which was used to pipette octanol</p>
+
+        
+          <div class='highlight'><pre>
+<span class="hljs-function"><span class="hljs-keyword">def</span> <span class="hljs-title">rainin_multichannel_pipetting_model</span><span class="hljs-params">(volume)</span>:</span>
+    <span class="hljs-string">""" Data obtained from 
+        https://www.shoprainin.com/Pipettes/Multichannel-Manual-Pipettes/Pipet-Lite-XLS%2B/Pipet-Lite-Multi-Pipette-L8-200XLS%2B/p/17013805        
+        
+        Parameters
+        ----------
+        volume - volume pipetted in microliters
+        
+        Notes
+        -----
+        This is the pipette used for pipetting octanol for the cyclohexane dilution into octanol.
+        
+        Returns
+        -------
+        Expected Inaccuracy, Imprecision
+    """</span>
+    imprecision_function = interp1d(
+        [<span class="hljs-number">20.0</span>, <span class="hljs-number">100.0</span>, <span class="hljs-number">200.0</span>], <span class="hljs-comment"># volume range (uL)</span>
+        [<span class="hljs-number">0.01</span>, <span class="hljs-number">0.0025</span>,<span class="hljs-number">0.0015</span>]) <span class="hljs-comment"># relative imprecision for these volumes from rainin website</span>
+    
+    inaccuracy_function = interp1d(
+        [<span class="hljs-number">20.0</span>, <span class="hljs-number">100.0</span>, <span class="hljs-number">200.0</span>], <span class="hljs-comment"># volume range (uL)</span>
+        [<span class="hljs-number">0.025</span>, <span class="hljs-number">0.008</span>, <span class="hljs-number">0.008</span>]) <span class="hljs-comment"># relative inaccuracy for these volumes from rainin website</span>
+    
+    <span class="hljs-keyword">return</span> [inaccuracy_function(volume), imprecision_function(volume)]</pre></div>
+        
+      
+        
+        <p>Model of a single channel pipette, which was used to pipette cyclohexane</p>
+
+        
+          <div class='highlight'><pre>
+<span class="hljs-function"><span class="hljs-keyword">def</span> <span class="hljs-title">rainin_singlechannel_pipetting_model</span><span class="hljs-params">(volume)</span>:</span>
+    <span class="hljs-string">""" Data obtained from
+        https://www.shoprainin.com/Pipettes/Single-Channel-Manual-Pipettes/RAININ-Classic/Rainin-Classic-Pipette-PR-10/p/17008649
+        
+        Parameters
+        ----------
+        volume - volume pipetted in microliters
+        
+        Notes
+        -----
+        This is the pipette used for pipetting cyclohexane into octanol
+           
+        Returns
+        -------
+        Expected Inaccuracy, Imprecision
+        
+    """</span>
+    imprecision_function = interp1d(
+        [<span class="hljs-number">1.0</span>, <span class="hljs-number">5.0</span>, <span class="hljs-number">10.0</span>], <span class="hljs-comment"># volume range (uL)</span>
+        [<span class="hljs-number">0.012</span>, <span class="hljs-number">0.006</span>, <span class="hljs-number">0.004</span>]) <span class="hljs-comment"># relative imprecision for these volumes from rainin website</span>
+    
+    inaccuracy_function = interp1d(
+        [<span class="hljs-number">1.0</span>, <span class="hljs-number">5.0</span>, <span class="hljs-number">10.0</span>], <span class="hljs-comment"># volume range (uL)</span>
+        [<span class="hljs-number">0.025</span>, <span class="hljs-number">0.015</span>, <span class="hljs-number">0.01</span>]) <span class="hljs-comment"># relative inaccuracy for these volumes from rainin website</span>
+    
+    <span class="hljs-keyword">return</span> [inaccuracy_function(volume), imprecision_function(volume)]</pre></div>
+        
+      
+        
+        <h2 id="bootstrap-models">Bootstrap models</h2>
+
+        
+      
+        
+        <p>These functions simulate new, random values of the experiment, based on the measured estimates, and expected bias and variance.</p>
+
+        
+          <div class='highlight'><pre>
+<span class="hljs-function"><span class="hljs-keyword">def</span> <span class="hljs-title">cyclohexane_dilution_bootstrap</span><span class="hljs-params">(expected_cyclohexane_volume=<span class="hljs-number">10.</span>, expected_octanol_volume=<span class="hljs-number">90.</span>)</span>:</span>
+    <span class="hljs-string">"""
+    Bootstrapping model for cyclohexane dilution dilution step.
+
+    Parameters
+    ----------
+    expected_cyclohexane_volume - float
+        the expected volume of cyclohexane in uL
+    expected_octanol_volume - float
+        the expected volume of octanol that was added in order to dilute cyclohexane in uL        
+  
+
+    Returns
+    -------
+    The expected dilution factor of the cyclohexane sample.
+    
+    """</span>
+
+
+       
+    cyclohexane_inaccuracy, cyclohexane_imprecision = rainin_singlechannel_pipetting_model(expected_cyclohexane_volume)       
+    oct_inaccuracy, oct_imprecision = rainin_multichannel_pipetting_model(expected_octanol_volume)</pre></div>
+        
+      
+        
+        <p>Relative bias and variance are simulated from standard normal distribution
+$$\begin{align}
+\text{Relative bias} \sim \mathcal{N}(0,1) \\
+\text{Relative variance} \sim \mathcal{N}(0,1) \\
+\end{align}$$</p>
+
+        
+          <div class='highlight'><pre>    
+    bias_cyclohexane = normal()    
+    bias_octanol = normal()
+    variance_cyclohexane = normal()
+    variance_octanol = normal()</pre></div>
+        
+      
+        
+        <p> Relative variance and bias estimates are scaled by the factor presumed from the pipette model.     </p>
+
+        
+          <div class='highlight'><pre>    Vcyclohexane_sample = expected_cyclohexane_volume * ((<span class="hljs-number">1</span> + cyclohexane_inaccuracy * bias_cyclohexane) + cyclohexane_imprecision * variance_cyclohexane)
+    Voct_sample = expected_octanol_volume * ((<span class="hljs-number">1</span> + oct_inaccuracy * bias_octanol) + oct_imprecision * variance_octanol)
+
+    <span class="hljs-keyword">return</span> Vcyclohexane_sample / (Vcyclohexane_sample+Voct_sample)
+
+
+<span class="hljs-function"><span class="hljs-keyword">def</span> <span class="hljs-title">measurement_bootstrap</span><span class="hljs-params">(cyclohexane_signal, buffer_signal)</span>:</span>
+    <span class="hljs-string">"""
+    Bootstrapping model for errors due to noise and integration errors in MRM signal.
+    
+    Parameters
+    ----------
+    cyclohexane_signal - int
+        The raw counts for the cyclohexane phase
+    buffer_signal - int    
+        The raw counts for the buffer phase
+
+    Returns
+    -------
+    Random sample of counts cyclohexane, buffer
+    """</span></pre></div>
+        
+      
+        
+        <p>Assumption: the integration procedure is messy, the data is noisy, but less or equal to 10% inaccuracy/imprecision is introduced for these causes. </p>
+
+        
+          <div class='highlight'><pre>    signal_inaccuracy = <span class="hljs-number">0.1</span> 
+    signal_imprecision = <span class="hljs-number">0.1</span></pre></div>
+        
+      
+        
+        <p>Relative bias and variance are simulated from standard normal distribution</p>
+
+        
+      
+        
+        <p>$$\begin{align}
+\text{Relative bias} \sim \mathcal{N}(0,1) \\
+\text{Relative variance} \sim \mathcal{N}(0,1) \\
+\end{align}$$</p>
+
+        
+      
+        
+        <p>Data is integrated separately, and injections may have different sources of noise, so the random bias is selected separately.</p>
+
+        
+          <div class='highlight'><pre>    
+    bias_cyclohexane = normal()
+    bias_buffer = normal()        
+    variance_cyclohexane = normal()
+    variance_buffer = normal()</pre></div>
+        
+      
+        
+        <p> Relative variance and bias estimates are scaled by the factor presumed above     </p>
+
+        
+          <div class='highlight'><pre>    cyclohexane_signal_sample = cyclohexane_signal * ((<span class="hljs-number">1</span> + signal_inaccuracy * bias_cyclohexane) + signal_imprecision * variance_cyclohexane)
+    buffer_signal_sample = buffer_signal * ((<span class="hljs-number">1</span> + signal_inaccuracy * bias_buffer) + signal_imprecision * variance_buffer)
+    
+    <span class="hljs-keyword">return</span> cyclohexane_signal_sample, buffer_signal_sample</pre></div>
+        
+      
+        
+        <h2 id="sampling-tools">Sampling tools</h2>
+
+        
+      
+        
+        
+        
+      
+        
+        <p>These functions sample from the data using the models we’ve defined above.</p>
+
+        
+          <div class='highlight'><pre>
+<span class="hljs-function"><span class="hljs-keyword">def</span> <span class="hljs-title">resample_repeats</span><span class="hljs-params">(measurements)</span>:</span>
+    <span class="hljs-string">"""
+    Make random selections with replacement from the provided array.
+    
+    Used to resample repeat experiments. Returns array with the same number of repeat measurements as input. 
+    """</span>
+    n = measurements.shape[<span class="hljs-number">0</span>]
+    <span class="hljs-keyword">return</span> measurements[choice(n,n)]
+
+
+<span class="hljs-function"><span class="hljs-keyword">def</span> <span class="hljs-title">resample_replicates</span><span class="hljs-params">(measurements)</span>:</span>
+    <span class="hljs-string">"""
+    Make random selections with replacement from the provided array, then proceed to do the same for the array inside of the array.    
+    Used to resample repeat experiments, and within each repeat, resample the replicates.    
+    Returns array with the same number of repeat measurements as input. 
+    """</span></pre></div>
+        
+      
+        
+        <p>First, select repeats with replacement.</p>
+
+        
+          <div class='highlight'><pre>    measurements = resample_repeats(measurements)</pre></div>
+        
+      
+        
+        <p>For every repeat, resample the replicate measurements.</p>
+
+        
+          <div class='highlight'><pre>    <span class="hljs-keyword">for</span> m, meas <span class="hljs-keyword">in</span> enumerate(measurements):
+        n = meas.shape[<span class="hljs-number">0</span>]
+        measurements[m] = meas[choice(n,n)]
+    <span class="hljs-keyword">return</span> measurements</pre></div>
+        
+      
+        
+        <p>This function brings it all together.</p>
+
+        
+          <div class='highlight'><pre><span class="hljs-function"><span class="hljs-keyword">def</span> <span class="hljs-title">sample</span><span class="hljs-params">(measurements, resample_measurements=False)</span>:</span>
+    <span class="hljs-string">"""
+    Sample a result for a single compound, given all its repeats, and technical replicate measurements.
+    
+    Parameters
+    ----------    
+    
+    measurements - np.ndarray
+        All measurements for a single compound
+        [
+            [repeat 1  [cyclohexane_signal, cyclohexane_volume, buffer_signal, buffer_volume]_1, ..., [cyclohexane_signal, cyclohexane_volume, buffer_signal, buffer_volume]_nrepl],
+            [repeat 2  [cyclohexane_signal, cyclohexane_volume, buffer_signal, buffer_volume]_1, ..., [cyclohexane_signal, cyclohexane_volume, buffer_signal, buffer_volume]_nrepl],
+            ...
+            [repeat n [cyclohexane_signal, cyclohexane_volume, buffer_signal, buffer_volume]_1, ..., [cyclohexane_signal, cyclohexane_volume, buffer_signal, buffer_volume]_nrep]
+        ]
+    resample_measurements - bool, optional
+        Resample from real data values (default: False)
+    
+    Returns
+    -------
+    Log D - array
+    """</span></pre></div>
+        
+      
+        
+        <p>This part validates the input structure</p>
+
+        
+      
+        
+        <p>Need np.ndarray for this to work</p>
+
+        
+          <div class='highlight'><pre>    <span class="hljs-keyword">assert</span> type(measurements) == np.ndarray</pre></div>
+        
+      
+        
+        <p>Make sure data points exists as quartets, otherwise something is wrong.</p>
+
+        
+          <div class='highlight'><pre>    <span class="hljs-keyword">assert</span> measurements.shape[<span class="hljs-number">-1</span>] == <span class="hljs-number">4</span></pre></div>
+        
+      
+        
+        <p>To account for numeric bias introduced from the limited amount of measurements
+we can choose to sample from them with replacement.</p>
+
+        
+          <div class='highlight'><pre>    <span class="hljs-keyword">if</span> resample_measurements:
+        measurements = resample_replicates(measurements)
+
+    result = np.empty(measurements.size / measurements.shape[<span class="hljs-number">-1</span>])  <span class="hljs-comment"># Number of log D estimates/measurements</span></pre></div>
+        
+      
+        
+        <p>First, loop </p>
+
+        
+          <div class='highlight'><pre>    <span class="hljs-keyword">for</span> r, repeat <span class="hljs-keyword">in</span> enumerate(measurements):</pre></div>
+        
+      
+        
+        <p>Every replicate will have the same dilution factor</p>
+
+        
+          <div class='highlight'><pre>        actual_dilution_factor =  cyclohexane_dilution_bootstrap()
+        <span class="hljs-keyword">for</span> i, measurement <span class="hljs-keyword">in</span> enumerate(repeat):
+            chx = measurement[<span class="hljs-number">0</span>]
+            cyclohexane_injection_volume = measurement[<span class="hljs-number">1</span>]
+            buffer = measurement[<span class="hljs-number">2</span>]
+            buffer_injection_volume = measurement[<span class="hljs-number">3</span>]</pre></div>
+        
+      
+        
+        <p>Randomly sample inaccuracy and imprecision in signal           </p>
+
+        
+          <div class='highlight'><pre>            actual_cyclohexane_signal, actual_buffer_signal = measurement_bootstrap(chx,buffer)  
+            actual_cyclohexane_signal /= actual_dilution_factor</pre></div>
+        
+      
+        
+        <p>Convert m/z counts to concentration.             </p>
+
+        
+          <div class='highlight'><pre>            proportional_cyclohexane_concentration = (actual_cyclohexane_signal / cyclohexane_injection_volume)            
+            proportional_buffer_concentration = (actual_buffer_signal / buffer_injection_volume)</pre></div>
+        
+      
+        
+        <p>Get the correct linear index of the measurement.</p>
+
+        
+          <div class='highlight'><pre>            index = r * len(repeat) + i</pre></div>
+        
+      
+        
+        <p>Calculate the log D, base 10 as log ([MRM_cyclohexane/vol_cyclohexane]/[MRM_buffer/vol_buffer])</p>
+
+        
+          <div class='highlight'><pre>            result[index] = np.log10(proportional_cyclohexane_concentration / proportional_buffer_concentration) 
+
+    <span class="hljs-keyword">return</span> result</pre></div>
+        
+      
+        
+        <h1 id="main-script">Main script</h1>
+
+        
+      
+        
+        <p>Actual execution of the code takes place here.</p>
+
+        
+          <div class='highlight'><pre>
+
+<span class="hljs-keyword">if</span> __name__ == <span class="hljs-string">"__main__"</span>:</pre></div>
+        
+      
+        
+        <h2 id="constructing-input-arrays">Constructing input arrays</h2>
+
+        
+      
+        
+        
+        
+      
+        
+        <p>Input data from the preprocessing step.</p>
+
+        
+          <div class='highlight'><pre>    
+    table = pd.read_excel(<span class="hljs-string">'processed.xlsx'</span>, sheetname=<span class="hljs-string">'Filtered Data'</span>)</pre></div>
+        
+      
+        
+        <p>Multiply all cyclohexane volumes by 10 to remove implicit dilution factor, which we will replace by a bootstrap model of the dilution
+As a quick fix, they’re easily identified in this table as being smaller than 1 microliter)</p>
+
+        
+          <div class='highlight'><pre>    table[<span class="hljs-string">"Volume"</span>] = table[<span class="hljs-string">"Volume"</span>].apply(<span class="hljs-keyword">lambda</span> x: x * <span class="hljs-number">10.0</span> <span class="hljs-keyword">if</span> x &lt; <span class="hljs-number">0.99</span> <span class="hljs-keyword">else</span> x)</pre></div>
+        
+      
+        
+        <p>Store data as convenient arrays in dictionary by compound name</p>
+
+        
+          <div class='highlight'><pre>    data_dict = dict()</pre></div>
+        
+      
+        
+        <p>Every compound in the set gets its own list of repeat experiments</p>
+
+        
+          <div class='highlight'><pre>    <span class="hljs-keyword">for</span> compound, compound_table <span class="hljs-keyword">in</span> table.groupby(<span class="hljs-string">"Sample Name"</span>):        
+        dataset = list()</pre></div>
+        
+      
+        
+        <p>Every independent repeat gets a list of replicate measurements of that same repeat</p>
+
+        
+          <div class='highlight'><pre>        <span class="hljs-keyword">for</span> (dset, repeat), repeat_table <span class="hljs-keyword">in</span> compound_table.groupby([<span class="hljs-string">"Set"</span>, <span class="hljs-string">"Repeat"</span>]):            
+            dataset.append(list())</pre></div>
+        
+      
+        
+        <p>Every replicate has two data points, one for each solvent</p>
+
+        
+          <div class='highlight'><pre>            <span class="hljs-keyword">for</span> replicate ,replicate_table <span class="hljs-keyword">in</span> repeat_table.groupby(<span class="hljs-string">"Replicate"</span>):
+                solvents = replicate_table.groupby([<span class="hljs-string">"Solvent"</span>])
+                chx = solvents.get_group(<span class="hljs-string">'CHX'</span>)
+                buffer = solvents.get_group(<span class="hljs-string">'PBS'</span>)</pre></div>
+        
+      
+        
+        <p>We need both the signal and the volume to calculate the log D</p>
+
+        
+          <div class='highlight'><pre>                cyclohexane_signal = float(chx[<span class="hljs-string">"Analyte Peak Area (counts)"</span>])
+                cyclohexane_injection_volume = float(chx[<span class="hljs-string">"Volume"</span>])
+                
+                buffer_signal = float(buffer[<span class="hljs-string">"Analyte Peak Area (counts)"</span>])
+                buffer_injection_volume = float(buffer[<span class="hljs-string">"Volume"</span>])
+                
+                dataset[<span class="hljs-number">-1</span>].append([cyclohexane_signal, cyclohexane_injection_volume, buffer_signal, buffer_injection_volume])</pre></div>
+        
+      
+        
+        <p>We store each set of measurements for the same compound in this dictionary, after converting it to a np.ndarray.</p>
+
+        
+          <div class='highlight'><pre>        data_dict[compound] = np.asarray(dataset)</pre></div>
+        
+      
+        
+        <h2 id="sampling-code">Sampling code</h2>
+
+        
+      
+        
+        
+        
+      
+        
+        <p>Number of bootstrap samples per compound</p>
+
+        
+          <div class='highlight'><pre>    n_samples = <span class="hljs-number">10000</span></pre></div>
+        
+      
+        
+        <p>See file below for the results.</p>
+
+        
+          <div class='highlight'><pre>    bootstrap_results = open(<span class="hljs-string">"LogD_bootstrap.txt"</span>, <span class="hljs-string">"w"</span>)
+    
+    
+    print(<span class="hljs-string">" Compound Log(D) +/-"</span>, file=bootstrap_results)
+    <span class="hljs-keyword">for</span> compound <span class="hljs-keyword">in</span> sorted(data_dict.keys()):
+        
+        samples = [<span class="hljs-keyword">None</span>] * n_samples <span class="hljs-comment"># Preallocate list </span>
+        <span class="hljs-keyword">for</span> i <span class="hljs-keyword">in</span> range(n_samples):</pre></div>
+        
+      
+        
+        <p>Draw a new random set of log D estimates</p>
+
+        
+          <div class='highlight'><pre>            samples[i] = sample(data_dict[compound], resample_measurements=<span class="hljs-keyword">True</span>)
+        
+        logd = ufloat(np.average(samples),  np.std(samples))</pre></div>
+        
+      
+        
+        <p>Data is printed with one significant digit in the uncertainty, and the mean is rounded with respect to that digit.</p>
+
+        
+          <div class='highlight'><pre>        print(compound, <span class="hljs-string">"{:.1u}"</span>.format(logd) , file=bootstrap_results)</pre></div>
+        
+      
+      <div class="fleur">h</div>
+    </div>
+  </div>
+</body>
+</html>
