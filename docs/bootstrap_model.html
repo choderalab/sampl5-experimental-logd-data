@@ -43,7 +43,8 @@
 <span class="hljs-keyword">import</span> numpy <span class="hljs-keyword">as</span> np
 <span class="hljs-keyword">import</span> pandas <span class="hljs-keyword">as</span> pd
 <span class="hljs-keyword">from</span> scipy.interpolate <span class="hljs-keyword">import</span> interp1d
-<span class="hljs-keyword">from</span> uncertainties <span class="hljs-keyword">import</span> ufloat</pre></div>
+<span class="hljs-keyword">from</span> uncertainties <span class="hljs-keyword">import</span> ufloat
+<span class="hljs-keyword">from</span> bootstrap_plotting <span class="hljs-keyword">import</span> make_plots</pre></div>
         
       
         
@@ -343,7 +344,9 @@ we can choose to sample from them with replacement.</p>
           <div class='highlight'><pre>    <span class="hljs-keyword">if</span> resample_measurements:
         measurements = resample_replicates(measurements)
 
-    result = np.empty(measurements.size / measurements.shape[<span class="hljs-number">-1</span>])  <span class="hljs-comment"># Number of log D estimates/measurements</span></pre></div>
+    result = np.empty(measurements.size / measurements.shape[<span class="hljs-number">-1</span>])  <span class="hljs-comment"># Number of log D estimates/measurements</span>
+    cyclohexane_signals = np.empty(measurements.size / measurements.shape[<span class="hljs-number">-1</span>])
+    buffer_signals = np.empty(measurements.size / measurements.shape[<span class="hljs-number">-1</span>])</pre></div>
         
       
         
@@ -392,9 +395,11 @@ we can choose to sample from them with replacement.</p>
         <p>Calculate the log D, base 10 as log ([MRM_cyclohexane/vol_cyclohexane]/[MRM_buffer/vol_buffer])</p>
 
         
-          <div class='highlight'><pre>            result[index] = np.log10(proportional_cyclohexane_concentration / proportional_buffer_concentration) 
+          <div class='highlight'><pre>            result[index] = np.log10(proportional_cyclohexane_concentration / proportional_buffer_concentration)
+            cyclohexane_signals[index] = proportional_cyclohexane_concentration
+            buffer_signals[index] = proportional_buffer_concentration
 
-    <span class="hljs-keyword">return</span> result</pre></div>
+    <span class="hljs-keyword">return</span> result, cyclohexane_signals, buffer_signals</pre></div>
         
       
         
@@ -502,7 +507,7 @@ As a quick fix, they’re easily identified in this table as being smaller than 
         <p>Number of bootstrap samples per compound</p>
 
         
-          <div class='highlight'><pre>    n_samples = <span class="hljs-number">10000</span></pre></div>
+          <div class='highlight'><pre>    n_samples = <span class="hljs-number">100</span></pre></div>
         
       
         
@@ -511,11 +516,32 @@ As a quick fix, they’re easily identified in this table as being smaller than 
         
           <div class='highlight'><pre>    bootstrap_results = open(<span class="hljs-string">"LogD_bootstrap.txt"</span>, <span class="hljs-string">"w"</span>)
     
+    previous_results = open(<span class="hljs-string">"../logD_final.txt"</span>, <span class="hljs-string">"r"</span>)
+    previous_results.readline() <span class="hljs-comment"># skip header</span>
     
-    print(<span class="hljs-string">" Compound Log(D) +/-"</span>, file=bootstrap_results)
-    <span class="hljs-keyword">for</span> compound <span class="hljs-keyword">in</span> sorted(data_dict.keys()):
+    expected_results = dict()
+    <span class="hljs-keyword">for</span> line <span class="hljs-keyword">in</span> previous_results:</pre></div>
         
+      
+        
+        <pre><code>    SAMPL5_002, <span class="hljs-number">1.4</span>+/<span class="hljs-number">-0.3</span>
+</code></pre>
+        
+          <div class='highlight'><pre>        compound = line.split(<span class="hljs-string">","</span>)[<span class="hljs-number">0</span>]
+        value = float(line.split(<span class="hljs-string">","</span>)[<span class="hljs-number">1</span>].split(<span class="hljs-string">'+'</span>)[<span class="hljs-number">0</span>])
+        expected_results[compound] = value
+
+        
+    print(<span class="hljs-string">" Compound Log(D) +/-"</span>, file=bootstrap_results)
+    
+    results = dict()
+    <span class="hljs-keyword">for</span> compound <span class="hljs-keyword">in</span> sorted(data_dict.keys()):        
+        
+        expected_value = expected_results[compound]
         samples = [<span class="hljs-keyword">None</span>] * n_samples <span class="hljs-comment"># Preallocate list </span>
+        chxs = [<span class="hljs-keyword">None</span>] * n_samples 
+        buffers = [<span class="hljs-keyword">None</span>] * n_samples
+         
         <span class="hljs-keyword">for</span> i <span class="hljs-keyword">in</span> range(n_samples):</pre></div>
         
       
@@ -523,16 +549,30 @@ As a quick fix, they’re easily identified in this table as being smaller than 
         <p>Draw a new random set of log D estimates</p>
 
         
-          <div class='highlight'><pre>            samples[i] = sample(data_dict[compound], resample_measurements=<span class="hljs-keyword">True</span>)
+          <div class='highlight'><pre>            samples[i],chxs[i], buffers[i] = sample(data_dict[compound], resample_measurements=<span class="hljs-keyword">False</span>)
         
-        logd = ufloat(np.average(samples),  np.std(samples))</pre></div>
+        logd = ufloat(np.average(samples),  np.std(samples))
+        bias = expected_value - np.average(samples)
+        std = np.std(samples)
+        chx_CV = np.std(chxs)/np.average(chxs)
+        buf_CV = np.std(buffers)/np.average(buffers)
+        
+        results[compound] = {<span class="hljs-string">'expected_value'</span> : expected_value, <span class="hljs-string">'bias'</span> : bias, <span class="hljs-string">'stdev'</span> : std, <span class="hljs-string">'chx_CV'</span> : chx_CV, <span class="hljs-string">'buf_CV'</span> : buf_CV}</pre></div>
         
       
         
         <p>Data is printed with one significant digit in the uncertainty, and the mean is rounded with respect to that digit.</p>
 
         
-          <div class='highlight'><pre>        print(compound, <span class="hljs-string">"{:.1u}"</span>.format(logd) , file=bootstrap_results)</pre></div>
+          <div class='highlight'><pre>        print(compound, <span class="hljs-string">"{:.1u}"</span>.format(logd) , file=bootstrap_results)
+    
+    
+    make_plots(results)</pre></div>
+        
+      
+        
+        <p><img src="../wip_code/Bootstrap_Results.png" alt="Plot generated by bootstrap" style="max-width: 100%;"></p>
+
         
       
       <div class="fleur">h</div>
