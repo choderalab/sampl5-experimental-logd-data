@@ -1,7 +1,7 @@
 import seaborn as sns
 from seaborn import plt
 import networkx as nx
-
+from numpy.random import normal
 from matplotlib import rc
 # rc('text', usetex=True)
 
@@ -11,25 +11,25 @@ rc('font', **font)
 rc('axes', **axes)
 
 
-def make_plots(result_dict, filename="Bootstrap_Results.png"):
+def make_plots(result_dict, filename="Bootstrap_Results.pdf"):
     
     sns.set_style('ticks')
     
-    fig, axarr = plt.subplots(4, sharex=True,figsize=(16,10))
+    fig, axarr = plt.subplots(4, sharex=True,figsize=(6,16))
     axarr[0].set_xlim(-4.2, 3.2)
-    arrowprops=dict(arrowstyle="->",connectionstyle="arc3")
+    arrowprops=dict(arrowstyle="-",connectionstyle="arc3")
+    # arrowprops= None
 
-    
     axarr[0].set_ylabel(r"Bias measured log D")    
     axarr[1].set_ylabel(r"Stdev log D")
     axarr[2].set_ylabel(r"CV cyclohexane signal")
     axarr[3].set_ylabel(r"CV buffer signal")
     axarr[3].set_xlabel(r"Measured Log D")
     
-    bias_labels = label_positions(result_dict, "bias")
-    std_labels = label_positions(result_dict, "stdev")
-    chx_labels= label_positions(result_dict, "chx_CV")
-    buf_labels= label_positions(result_dict, "buf_CV")
+    bias_labels = label_positions(result_dict, "bias",edge_length=0.07)
+    std_labels = label_positions(result_dict, "stdev",edge_length=0.085)
+    chx_labels= label_positions(result_dict, "chx_CV",edge_length=0.095)
+    buf_labels= label_positions(result_dict, "buf_CV", edge_length=0.095)
     
     for compound,dp in result_dict.items():
         ev, b, s, xcv, bcv = dp["expected_value"], dp["bias"], dp["stdev"], dp["chx_CV"], dp["buf_CV"]
@@ -54,6 +54,7 @@ def make_plots(result_dict, filename="Bootstrap_Results.png"):
     
     fig.savefig(filename)
 
+
 def label_positions(result_dict, prop, edge_length=0.085):
     
     G=nx.Graph()        
@@ -64,8 +65,9 @@ def label_positions(result_dict, prop, edge_length=0.085):
         G.add_node(comp)
         G.add_edge(comp + "data", comp)
         fixed_positions[comp +"data"] = [datapoints["expected_value"], datapoints[prop]]
+
    
-    pos = nx.spring_layout(G,pos=fixed_positions, fixed = fixed_positions.keys(), k=edge_length)
+    pos = nx.spring_layout(G,pos=fixed_positions, fixed = fixed_positions.keys(), k=edge_length, iterations = 500)
     # nx.draw_networkx(G,pos)
     
-    return {k: v for k, v in pos.items() if "data" not in k}
+    return {k: v + (v * normal(scale=0.1)) for k, v in pos.items() if "data" not in k}
