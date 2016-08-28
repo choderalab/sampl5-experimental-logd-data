@@ -10,6 +10,7 @@ import pandas as pd
 from scipy.interpolate import interp1d
 from uncertainties import ufloat
 from bootstrap_plotting import make_plots
+from scipy.stats import sem
 
 # Pipette models
 # --------------
@@ -78,7 +79,7 @@ def rainin_singlechannel_pipetting_model(volume):
 # ----------------
 # These functions simulate new, random values of the experiment, based on the measured estimates, and expected bias and variance.
 
-def cyclohexane_dilution_bootstrap(expected_cyclohexane_volume=10., expected_octanol_volume=90.):
+def cyclohexane_dilution_bootstrap(expected_cyclohexane_volume=5., expected_octanol_volume=45.):
     """
     Bootstrapping model for cyclohexane dilution dilution step.
 
@@ -135,29 +136,27 @@ def measurement_bootstrap(cyclohexane_signal, buffer_signal):
     Random sample of counts cyclohexane, buffer
     """
         
-    # Assumption: the integration procedure is messy, the data is noisy, but less or equal to 10% inaccuracy/imprecision is introduced for these causes. 
-    signal_inaccuracy = 0.1 
-    signal_imprecision = 0.1
+    # We calculated the median relative standard deviation over replicates in the data set to get some estimate of the typical error.
+    signal_imprecision = 0.3
    
-    # Relative bias and variance are simulated from standard normal distribution
+    # Variance is simulated from standard normal distribution
     
     # $$\begin{align}
-    # \text{Relative bias} \sim \mathcal{N}(0,1) \\\\
-    # \text{Relative variance} \sim \mathcal{N}(0,1) \\\\
+       # \text{Relative variance} \sim \mathcal{N}(0,1) \\\\
     # \end{align}$$
     
     # Data is integrated separately, and injections may have different sources of noise, so the random bias is selected separately.
     
-    bias_cyclohexane = normal()
-    bias_buffer = normal()        
+
     variance_cyclohexane = normal()
     variance_buffer = normal()
     
     #  Relative variance and bias estimates are scaled by the factor presumed above     
-    cyclohexane_signal_sample = cyclohexane_signal * ((1 + signal_inaccuracy * bias_cyclohexane) + signal_imprecision * variance_cyclohexane)
-    buffer_signal_sample = buffer_signal * ((1 + signal_inaccuracy * bias_buffer) + signal_imprecision * variance_buffer)
-    
-    return cyclohexane_signal_sample, buffer_signal_sample
+    cyclohexane_signal_sample = cyclohexane_signal * (1.0 + (signal_imprecision * variance_cyclohexane))
+    buffer_signal_sample = buffer_signal  * ( 1.0 + (signal_imprecision * variance_buffer))
+
+    # signal is at least 1 count, or we cant calculate log D
+    return max(1.0, cyclohexane_signal_sample), max(1.0, buffer_signal_sample)
 
 # Sampling tools
 # -------------
@@ -190,10 +189,11 @@ def resample_replicates(measurements):
         measurements[m] = meas[choice(n,n)]
     return measurements
 
-# This function brings it all together.
-def sample(measurements, resample_measurements=False):
+
+# This function performs sampling using a parametric bootstrap, which includes all the models we've defined.
+def parametric_sample(measurements):
     """
-    Sample a result for a single compound, given all its repeats, and technical replicate measurements.
+    Use parameteric bootstrap to sample a result for a single compound, given all its repeats, and technical replicate measurements.
     
     Parameters
     ----------    
@@ -222,11 +222,6 @@ def sample(measurements, resample_measurements=False):
     # Make sure data points exists as quartets, otherwise something is wrong.
     assert measurements.shape[-1] == 4
 
-    # To account for numeric bias introduced from the limited amount of measurements
-    # we can choose to sample from them with replacement.
-    if resample_measurements:
-        measurements = resample_replicates(measurements)
-
     result = np.empty(measurements.size / measurements.shape[-1])  # Number of log D estimates/measurements
     cyclohexane_signals = np.empty(measurements.size / measurements.shape[-1])
     buffer_signals = np.empty(measurements.size / measurements.shape[-1])
@@ -235,18 +230,18 @@ def sample(measurements, resample_measurements=False):
         # Every replicate will have the same dilution factor
         actual_dilution_factor =  cyclohexane_dilution_bootstrap()
         for i, measurement in enumerate(repeat):
-            chx = measurement[0]
+            measured_cyclohexane_signal = measurement[0]
             cyclohexane_injection_volume = measurement[1]
-            buffer = measurement[2]
+            measured_buffer_signal = measurement[2]
             buffer_injection_volume = measurement[3]
 
             # Randomly sample inaccuracy and imprecision in signal           
-            actual_cyclohexane_signal, actual_buffer_signal = measurement_bootstrap(chx,buffer)  
-            actual_cyclohexane_signal /= actual_dilution_factor
+            sampled_cyclohexane_signal, sampled_buffer_signal = measurement_bootstrap(measured_cyclohexane_signal,measured_buffer_signal)
+            sampled_cyclohexane_signal /= actual_dilution_factor
             
             # Convert m/z counts to concentration.             
-            proportional_cyclohexane_concentration = (actual_cyclohexane_signal / cyclohexane_injection_volume)            
-            proportional_buffer_concentration = (actual_buffer_signal / buffer_injection_volume)
+            proportional_cyclohexane_concentration = (sampled_cyclohexane_signal / cyclohexane_injection_volume)
+            proportional_buffer_concentration = (sampled_buffer_signal / buffer_injection_volume)
             
             # Get the correct linear index of the measurement.
             index = r * len(repeat) + i            
@@ -256,6 +251,72 @@ def sample(measurements, resample_measurements=False):
             buffer_signals[index] = proportional_buffer_concentration
 
     return result, cyclohexane_signals, buffer_signals
+
+
+def nonparametric_sample(measurements, smooth=True):
+    """
+    Use nonparametric bootstrap (resampling) for the result for a single compound, given all its repeats, and technical replicate measurements.
+
+    Parameters
+    ----------
+
+    measurements - np.ndarray
+        All measurements for a single compound
+        [
+            [repeat 1  [cyclohexane_signal, cyclohexane_volume, buffer_signal, buffer_volume]_1, ..., [cyclohexane_signal, cyclohexane_volume, buffer_signal, buffer_volume]_nrepl],
+            [repeat 2  [cyclohexane_signal, cyclohexane_volume, buffer_signal, buffer_volume]_1, ..., [cyclohexane_signal, cyclohexane_volume, buffer_signal, buffer_volume]_nrepl],
+            ...
+            [repeat n [cyclohexane_signal, cyclohexane_volume, buffer_signal, buffer_volume]_1, ..., [cyclohexane_signal, cyclohexane_volume, buffer_signal, buffer_volume]_nrep]
+        ]
+    resample_measurements - bool, optional
+        Resample from real data values (default: False)
+
+    Returns
+    -------
+    Log D - array
+    """
+
+    # This part validates the input structure
+
+    # Need np.ndarray for this to work
+    assert type(measurements) == np.ndarray
+
+    # Make sure data points exists as quartets, otherwise something is wrong.
+    assert measurements.shape[-1] == 4
+
+    # To account for numeric bias introduced from the limited amount of measurements
+    # we can choose to sample from them with replacement.
+
+    measurements = resample_replicates(measurements)
+
+    result = np.empty(measurements.size / measurements.shape[-1])  # Number of log D estimates/measurements
+    cyclohexane_signals = np.empty(measurements.size / measurements.shape[-1])
+    buffer_signals = np.empty(measurements.size / measurements.shape[-1])
+    # First, loop
+    for r, repeat in enumerate(measurements):
+        # Octanol dilution
+        dilution_factor = 0.1
+        for i, measurement in enumerate(repeat):
+            cyclohexane_injection_volume = measurement[1]
+            buffer_injection_volume = measurement[3]
+
+            # Randomly sample inaccuracy and imprecision in signal
+            cyclohexane_signal, buffer_signal = measurement[0], measurement[2]
+            cyclohexane_signal /= dilution_factor
+
+            # Convert m/z counts to concentration.
+            proportional_cyclohexane_concentration = (cyclohexane_signal / cyclohexane_injection_volume)
+            proportional_buffer_concentration = (buffer_signal / buffer_injection_volume)
+
+            # Get the correct linear index of the measurement.
+            index = r * len(repeat) + i
+            # Calculate the log D, base 10 as log ([MRM_cyclohexane/vol_cyclohexane]/[MRM_buffer/vol_buffer])
+            result[index] = np.log10(proportional_cyclohexane_concentration / proportional_buffer_concentration)
+            cyclohexane_signals[index] = proportional_cyclohexane_concentration
+            buffer_signals[index] = proportional_buffer_concentration
+
+    return result, cyclohexane_signals, buffer_signals
+
 
 
 # Main script
@@ -271,7 +332,7 @@ if __name__ == "__main__":
     
     # Input data from the preprocessing step.
     
-    table = pd.read_excel('processed.xlsx', sheetname='Filtered Data')
+    table = pd.read_excel('C:/Users/rustenba/Documents/GitHub/sampl5-experimental-logd-data/processed.xlsx', sheetname='Filtered Data')
 
     # Multiply all cyclohexane volumes by 10 to remove implicit dilution factor, which we will replace by a bootstrap model of the dilution
     # As a quick fix, they're easily identified in this table as being smaller than 1 microliter)
@@ -310,24 +371,21 @@ if __name__ == "__main__":
     # -------------
 
     # Number of bootstrap samples per compound
-    n_samples = 100
+    n_samples = 5000
     
     # See file below for the results.
-    bootstrap_results = open("LogD_bootstrap.txt", "w")
+    bootstrap_results = open("LogD_parametric4_bootstrap.txt", "w")
     
     previous_results = open("../logD_final.txt", "r")
     previous_results.readline() # skip header
     
     expected_results = dict()
     for line in previous_results:
-        #         SAMPL5_002, 1.4+/-0.3
         compound = line.split(",")[0]
         value = float(line.split(",")[1].split('+')[0])
         expected_results[compound] = value
 
-        
     print(" Compound Log(D) +/-", file=bootstrap_results)
-    
     results = dict()
     for compound in sorted(data_dict.keys()):        
         
@@ -338,9 +396,19 @@ if __name__ == "__main__":
          
         for i in range(n_samples):
             # Draw a new random set of log D estimates
-            samples[i],chxs[i], buffers[i] = sample(data_dict[compound], resample_measurements=False)
+            # Use nonparametric_sample if a nonparametric bootstrap is desired
+            samples[i],chxs[i], buffers[i] = parametric_sample(data_dict[compound])
         
         logd = ufloat(np.average(samples),  np.std(samples))
+
+        import seaborn as sns
+        sns.set_style("ticks")
+        ax = sns.distplot(np.asarray(samples).flatten(),hist=False)
+        ax.set_title("Parametric bootstrap samples for {}".format(compound))
+        ax.set_xlabel("Sample Log D")
+        ax.set_ylabel("Normalized sample density (Gaussian kernel)")
+        sns.plt.savefig("bootstrapdistributions/{}.pdf".format(compound))
+        sns.plt.clf()
         bias = expected_value - np.average(samples)
         std = np.std(samples)
         chx_CV = np.std(chxs)/np.average(chxs)
